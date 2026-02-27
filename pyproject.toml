@@ -1,0 +1,15 @@
+[project]
+name = "cartpole-dqn"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "gymnasium==1.2.1",
+    "gymnasium-2048>=0.1.0",
+    "imageio>=2.37.2",
+    "numpy>=2.4.2",
+    "pygame>=2.6.1",
+    "torch>=2.10.0",
+    "torchvision>=0.25.0",
+]
