@@ -24,6 +24,7 @@ replay_buffer = ReplayBuffer(buffer_size, batch_size)
 
 lr = 1e-4
 optimizer = torch.optim.Adam(q_net.parameters(), lr=lr)
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=100, factor=0.5)
 
 start_epsilon = 1.0
 change_epsilon = start_epsilon
@@ -166,8 +167,9 @@ def train():
 
         print(f'Episode: {episode}, Total Reward: {total_reward:.1f}, Max Tile: {max_tile}, Steps: {time_step}, Epsilon: {change_epsilon:.3f}')
         change_epsilon = max(epsilon_min, change_epsilon * epsilon_decay)
+        scheduler.step(total_reward)
         if (episode + 1) % epsilon_reset_cycle == 0:
-            start_epsilon /= 2
+            start_epsilon = max(0.3, start_epsilon / 2)
             change_epsilon = start_epsilon
 
         if total_reward > max_reward:
