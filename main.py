@@ -169,7 +169,7 @@ def train():
         change_epsilon = max(epsilon_min, change_epsilon * epsilon_decay)
         scheduler.step(total_reward)
         if (episode + 1) % epsilon_reset_cycle == 0:
-            start_epsilon = max(0.3, start_epsilon / 2)
+            # start_epsilon = max(0.3, start_epsilon / 2)
             change_epsilon = start_epsilon
 
         if total_reward > max_reward:
