@@ -35,7 +35,7 @@ epsilon_reset_cycle = 3000
 gamma = 0.99
 tau = 0.005  # ソフトターゲット更新率
 
-episodes = 10000
+episodes = 50000
 
 def get_legal_actions(obs):
     """観測から合法手のリストを返す (4x4x16 one-hot → 4x4 board)"""
