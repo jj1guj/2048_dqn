@@ -18,7 +18,7 @@ t_net.load_state_dict(q_net.state_dict())
 t_net.eval()
 best_weight = q_net.state_dict()
 
-buffer_size = 10000
+buffer_size = 100000
 batch_size = 128
 replay_buffer = ReplayBuffer(buffer_size, batch_size)
 
