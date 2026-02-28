@@ -109,6 +109,7 @@ def tderror(states, actions, next_states, rewards, terminateds):
 
     optimizer.zero_grad()
     loss.backward()
+    torch.nn.utils.clip_grad_norm_(q_net.parameters(), max_norm=1.0)
     optimizer.step()
 
 def train():
