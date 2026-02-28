@@ -27,7 +27,7 @@ optimizer = torch.optim.Adam(q_net.parameters(), lr=lr)
 
 start_epsilon = 1.0
 change_epsilon = start_epsilon
-epsilon_decay = 0.995
+epsilon_decay = 0.999
 epsilon_min = 0.05
 epsilon_reset_cycle = 3000
 
