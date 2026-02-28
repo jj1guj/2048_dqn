@@ -1,6 +1,7 @@
 from torch import nn
 from torch.nn import functional as F
 
+
 class ResNetBlock(nn.Module):
     def __init__(self, channels):
         super(ResNetBlock, self).__init__()
@@ -19,22 +20,33 @@ class ResNetBlock(nn.Module):
 
         return F.relu(out + x)
 
+
 class N_Network(nn.Module):
-    def __init__(self, blocks=5, channels=16):
+    def __init__(self, blocks=3, channels=128):
         super().__init__()
 
-        self.upsample = nn.ConvTranspose2d(
-            in_channels=16, out_channels=channels,
-            kernel_size=8, stride=8  # 4x4 → 32x32
+        # 4x4 ボードをそのまま処理（アップサンプリング不要）
+        self.input_conv = nn.Sequential(
+            nn.Conv2d(16, channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(channels),
+            nn.ReLU(),
         )
-        self.norm_upsample = nn.BatchNorm2d(channels)
 
-        self.blocks = nn.Sequential(*[ResNetBlock(channels) for _ in range(blocks)])
+        self.blocks = nn.Sequential(
+            *[ResNetBlock(channels) for _ in range(blocks)]
+        )
 
-        MOVE_LABEL_NUM = 4
-        self.conv1 = nn.Conv2d(in_channels=channels, out_channels=MOVE_LABEL_NUM, kernel_size=1, bias=False)
-        self.norm1 = nn.BatchNorm2d(MOVE_LABEL_NUM)
-        self.linear1 = nn.Linear(32 * 32 * MOVE_LABEL_NUM, MOVE_LABEL_NUM)
+        # Dueling DQN: Value + Advantage ストリーム
+        self.value_stream = nn.Sequential(
+            nn.Linear(channels * 4 * 4, 512),
+            nn.ReLU(),
+            nn.Linear(512, 1),
+        )
+        self.advantage_stream = nn.Sequential(
+            nn.Linear(channels * 4 * 4, 512),
+            nn.ReLU(),
+            nn.Linear(512, 4),
+        )
 
     def forward(self, x):
         # (batch, H, W, C) -> (batch, C, H, W)
@@ -43,10 +55,12 @@ class N_Network(nn.Module):
         elif x.dim() == 3 and x.shape[-1] == 16:
             x = x.permute(2, 0, 1).unsqueeze(0)
 
-        out = self.upsample(x)
-        out = F.relu(self.norm_upsample(out))
+        out = self.input_conv(x)
         out = self.blocks(out)
-        out = F.relu(self.norm1(self.conv1(out)))
         out = out.flatten(1)
-        out = self.linear1(out)
-        return out
+
+        value = self.value_stream(out)
+        advantage = self.advantage_stream(out)
+        # Q = V + (A - mean(A))
+        q = value + advantage - advantage.mean(dim=1, keepdim=True)
+        return q
