@@ -11,3 +11,4 @@ wheels/
 experiences/
 videos/
 *.pth
+*.txt
