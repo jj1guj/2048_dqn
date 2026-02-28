@@ -28,11 +28,13 @@ class N_Network(nn.Module):
         input_dim = 4 * 4 * 16
 
         self.shared = nn.Sequential(
-            nn.Linear(input_dim, 512),
+            nn.Linear(input_dim, 256),
             nn.ReLU(),
-            nn.Linear(512, 512),
+            nn.Linear(256, 1024),
             nn.ReLU(),
-            nn.Linear(512, 256),
+            nn.Linear(1024, 1024),
+            nn.ReLU(),
+            nn.Linear(1024, 512),
             nn.ReLU(),
         )
 
