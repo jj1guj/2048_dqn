@@ -7,5 +7,7 @@ wheels/
 *.egg-info
 
 # Virtual environments
-.venv
-experiences
+.venv/
+experiences/
+videos/
+*.pth
