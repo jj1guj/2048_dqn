@@ -30,10 +30,9 @@ epsilon_decay = 0.995
 epsilon_min = 0.05
 
 gamma = 0.99
+tau = 0.005  # ソフトターゲット更新率
 
 episodes = 10000
-
-td_interval = 500
 
 def get_legal_actions(obs):
     """観測から合法手のリストを返す (4x4x16 one-hot → 4x4 board)"""
@@ -100,27 +99,34 @@ def tderror(states, actions, next_states, rewards, terminateds):
     q_value = q_values.gather(1, actions).squeeze()
 
     with torch.no_grad():
-        next_q_max = t_net(next_states.float()).max(1)[0]
-        # Q値のターゲット値をベルマン方程式に従って計算
-        q_value_target = rewards + (1 - terminateds) * gamma * next_q_max
+        # Double DQN: q_netでアクション選択、t_netで評価
+        next_actions = q_net(next_states.float()).argmax(1, keepdim=True)
+        next_q_value = t_net(next_states.float()).gather(1, next_actions).squeeze()
+        q_value_target = rewards + (1 - terminateds) * gamma * next_q_value
 
-    # Q値から価値観数とのTD誤差を計算
-    loss = torch.nn.MSELoss()(q_value, q_value_target)
+    # Huber Loss (SmoothL1) は外れ値に対してMSEより安定
+    loss = torch.nn.SmoothL1Loss()(q_value, q_value_target)
 
     optimizer.zero_grad()
     loss.backward()
     torch.nn.utils.clip_grad_norm_(q_net.parameters(), max_norm=1.0)
     optimizer.step()
 
+def soft_update_target():
+    """ソフトターゲット更新 (Polyak averaging)"""
+    for t_param, q_param in zip(t_net.parameters(), q_net.parameters()):
+        t_param.data.copy_(tau * q_param.data + (1.0 - tau) * t_param.data)
+
+
 def train():
     global best_weight
     global change_epsilon
     max_reward = 0
+    total_steps = 0
     for episode in range(episodes):
         state, _ = env.reset()
         time_step = 0
         episode_over = False
-        noise = 0
         total_reward = 0
         max_tile = 0
 
@@ -145,19 +151,17 @@ def train():
             replay_buffer.add(experience)
 
             state = next_state
-            if time_step % 4 == 0 and len(replay_buffer) >= batch_size:
+            total_steps += 1
+            if total_steps % 4 == 0 and len(replay_buffer) >= batch_size:
                 states, actions, rewards, next_states, terminateds = replay_buffer.sampling()
                 tderror(states, actions, next_states, rewards, terminateds)
-
-            # 一定間隔でターゲットネットワークの重みを更新
-            if time_step % td_interval == 0:
-                t_net.load_state_dict(q_net.state_dict())
+                # ソフトターゲット更新（学習ごとに少しずつ更新）
+                soft_update_target()
 
             total_reward += float(reward)
             time_step += 1
-            w = q_net.state_dict()
 
-        print(f'Episode: {episode}, Total Reward: {total_reward}, Max Tile: {max_tile}, Time Step: {time_step}')
+        print(f'Episode: {episode}, Total Reward: {total_reward:.1f}, Max Tile: {max_tile}, Steps: {time_step}, Epsilon: {change_epsilon:.3f}')
         change_epsilon = max(epsilon_min, change_epsilon * epsilon_decay)
         if total_reward > max_reward:
             max_reward = total_reward
