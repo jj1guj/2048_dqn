@@ -12,10 +12,13 @@ from typing import Optional
 
 import gymnasium as gym
 import numpy as np
+import torch
 import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
+
+from n_network import N_Network
 
 # ==================== 設定 ====================
 HOST = "0.0.0.0"
@@ -128,6 +131,26 @@ class Game2048Server:
 
 # グローバルゲームインスタンス
 game: Optional[Game2048Server] = None
+
+# AIモデル (遅延読み込み)
+ai_model: Optional[N_Network] = None
+
+
+def get_ai_model() -> N_Network:
+    """AIモデルを遅延読み込みする"""
+    global ai_model
+    if ai_model is None:
+        ai_model = N_Network()
+        model_path = "model.pth"
+        if os.path.exists(model_path):
+            ai_model.load_state_dict(
+                torch.load(model_path, map_location="cpu", weights_only=True)
+            )
+            print(f"[AI] モデル読み込み: {model_path}")
+        else:
+            print(f"[AI] {model_path} が見つかりません。ランダム重みを使用します。")
+        ai_model.eval()
+    return ai_model
 
 
 @asynccontextmanager
@@ -440,6 +463,7 @@ h1 {
     </div>
     <div class="controls">
         <button class="btn" onclick="resetGame()">New Game</button>
+        <button class="btn" id="auto-play-btn" onclick="toggleAutoPlay()" style="background:#5a9e6f;">AI Play</button>
         <div class="info">
             <kbd>&uarr;</kbd> <kbd>&darr;</kbd> <kbd>&larr;</kbd> <kbd>&rarr;</kbd> or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>
         </div>
@@ -792,6 +816,34 @@ window.addEventListener('beforeunload', saveBeforeLeave);
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') saveBeforeLeave();
 });
+
+// ============================================================
+// AI Auto-play
+// ============================================================
+let autoPlaying = false;
+async function startAutoPlay() {
+    if (autoPlaying) return;
+    autoPlaying = true;
+    document.getElementById('status').textContent = 'AI自動プレイ中...';
+    document.getElementById('auto-play-btn').textContent = 'Stop AI';
+
+    await resetGame();
+    while (autoPlaying) {
+        const res = await fetch('/api/auto-action', { method: 'POST' });
+        const data = await res.json();
+        if (data.action === -1) break;
+        await doStep(data.action);
+        await sleep(200);
+        if (document.getElementById('game-over').classList.contains('active')) break;
+    }
+    autoPlaying = false;
+    document.getElementById('status').textContent = 'AI自動プレイ完了';
+    document.getElementById('auto-play-btn').textContent = 'AI Play';
+}
+function toggleAutoPlay() {
+    if (autoPlaying) { autoPlaying = false; }
+    else { startAutoPlay(); }
+}
 </script>
 </body>
 </html>"""
@@ -827,6 +879,18 @@ async def api_save():
         game._save_experience()
         game.episode_experiences = []
     return JSONResponse(content={"ok": True})
+
+
+@app.post("/api/auto-action")
+async def api_auto_action():
+    """AIモデルで次のアクションを決定する"""
+    assert game is not None
+    assert game.current_obs is not None
+    model = get_ai_model()
+    state = torch.FloatTensor(game.current_obs).unsqueeze(0)
+    with torch.no_grad():
+        action = int(model(state).argmax().item())
+    return JSONResponse(content={"action": action})
 
 
 def main():
