@@ -129,14 +129,18 @@ def train():
             next_state, reward, terminated, truncated, info = env.step(action)
             reward = np.log2(float(reward) + 1)
             episode_over = terminated or truncated
+
+            if info["max"] > 0:
+                current_tile = int(2 ** info["max"])
+                if current_tile > max_tile:
+                    max_tile = current_tile
+                    reward += float(info["max"])
+
             experience = (state, action, reward, next_state, episode_over)
 
             # 違法手はバッファに入れない＆次のアクションを試す
             if not info["is_legal"]:
                 continue
-
-            if info["max"] > 0:
-                max_tile = max(max_tile, int(2 ** info["max"]))
 
             replay_buffer.add(experience)
 
