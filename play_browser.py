@@ -37,13 +37,14 @@ class Game2048Server:
         self.episode_experiences: list[dict] = []  # 現在のエピソードのexperience
         self.episode_count = 0
         self.step_count = 0  # エピソード内のステップ数(save時にリセットされない)
+        self.auto_playing = False  # AI自動プレイ中はexperience保存しない
         os.makedirs(EXPERIENCE_DIR, exist_ok=True)
         self.reset()
 
     def reset(self):
         """ゲームをリセット"""
         # 前のエピソードのexperienceを保存
-        if self.episode_experiences:
+        if self.episode_experiences and not self.auto_playing:
             self._save_experience()
         self.episode_experiences = []
         self.step_count = 0
@@ -60,8 +61,8 @@ class Game2048Server:
         if info["is_legal"]:
             self.step_count += 1
 
-        # experienceを記録(合法手のみ)
-        if info["is_legal"]:
+        # experienceを記録(合法手のみ、AI自動プレイ時はスキップ)
+        if info["is_legal"] and not self.auto_playing:
             experience = {
                 "state": prev_obs,
                 "action": action,
@@ -85,7 +86,7 @@ class Game2048Server:
         state["is_legal"] = info["is_legal"]
 
         # ゲーム終了時に自動保存
-        if terminated:
+        if terminated and not self.auto_playing:
             self._save_experience()
             self.episode_experiences = []
 
@@ -475,7 +476,7 @@ h1 {
     <div class="game-over-msg">Game Over!</div>
     <div class="game-over-score" id="game-over-score"></div>
     <button class="btn" onclick="resetGame()">Try Again</button>
-    <div style="margin-top:10px;color:#776e65;font-size:14px;">Experienceを自動保存しました</div>
+    <div style="margin-top:10px;color:#776e65;font-size:14px;" id="save-msg">Experienceを自動保存しました</div>
 </div>
 
 <script>
@@ -769,6 +770,7 @@ async function doStep(action) {
             await sleep(200);
             document.getElementById('game-over-score').textContent =
                 'Score: ' + state.score + ' | Max Tile: ' + state.max_tile;
+            document.getElementById('save-msg').style.display = autoPlaying ? 'none' : '';
             document.getElementById('game-over').classList.add('active');
         }
     } finally {
@@ -827,6 +829,7 @@ async function startAutoPlay() {
     document.getElementById('status').textContent = 'AI自動プレイ中...';
     document.getElementById('auto-play-btn').textContent = 'Stop AI';
 
+    await fetch('/api/auto-play-start', { method: 'POST' });
     await resetGame();
     while (autoPlaying) {
         const res = await fetch('/api/auto-action', { method: 'POST' });
@@ -836,6 +839,7 @@ async function startAutoPlay() {
         await sleep(200);
         if (document.getElementById('game-over').classList.contains('active')) break;
     }
+    await fetch('/api/auto-play-stop', { method: 'POST' });
     autoPlaying = false;
     document.getElementById('status').textContent = 'AI自動プレイ完了';
     document.getElementById('auto-play-btn').textContent = 'AI Play';
@@ -883,14 +887,64 @@ async def api_save():
 
 @app.post("/api/auto-action")
 async def api_auto_action():
-    """AIモデルで次のアクションを決定する"""
+    """AIモデルで次のアクションを決定する（合法手のみ）"""
     assert game is not None
     assert game.current_obs is not None
     model = get_ai_model()
-    state = torch.FloatTensor(game.current_obs).unsqueeze(0)
+    obs = game.current_obs
+    state = torch.FloatTensor(obs).unsqueeze(0)
     with torch.no_grad():
-        action = int(model(state).argmax().item())
+        q = model(state).squeeze()
+        # 合法手のみを候補にする
+        legal = _get_legal_actions(obs)
+        mask = torch.full((4,), float('-inf'))
+        for a in legal:
+            mask[a] = 0
+        action = int((q + mask).argmax().item())
     return JSONResponse(content={"action": action})
+
+
+@app.post("/api/auto-play-start")
+async def api_auto_play_start():
+    """AI自動プレイ開始（experience保存を無効化）"""
+    assert game is not None
+    game.auto_playing = True
+    return JSONResponse(content={"ok": True})
+
+
+@app.post("/api/auto-play-stop")
+async def api_auto_play_stop():
+    """AI自動プレイ終了（experience保存を再有効化）"""
+    assert game is not None
+    game.auto_playing = False
+    return JSONResponse(content={"ok": True})
+
+
+def _is_move_legal(board: np.ndarray, action: int) -> bool:
+    """指定方向に動かせるかチェック"""
+    size = 4
+    for i in range(size):
+        line = []
+        for j in range(size):
+            if action == 0:   r, c = j, i
+            elif action == 1: r, c = i, size - 1 - j
+            elif action == 2: r, c = size - 1 - j, i
+            else:             r, c = i, j
+            line.append(board[r][c])
+        non_zero = [v for v in line if v != 0]
+        if non_zero != [line[j] for j in range(len(non_zero))]:
+            return True
+        for k in range(len(non_zero) - 1):
+            if non_zero[k] == non_zero[k + 1]:
+                return True
+    return False
+
+
+def _get_legal_actions(obs: np.ndarray) -> list[int]:
+    """観測から合法手のリストを返す"""
+    board = obs.argmax(axis=-1)
+    actions = [a for a in range(4) if _is_move_legal(board, a)]
+    return actions if actions else [0]
 
 
 def main():
