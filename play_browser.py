@@ -3,17 +3,19 @@
 プレイデータ(experience)を自動保存し、強化学習の学習データとして利用可能
 """
 
-import json
 import os
 import pickle
+import signal
+from contextlib import asynccontextmanager
 from datetime import datetime
-from http.server import HTTPServer, SimpleHTTPRequestHandler
-from urllib.parse import parse_qs, urlparse
-
 from typing import Optional
 
 import gymnasium as gym
 import numpy as np
+import uvicorn
+from fastapi import FastAPI
+from fastapi.responses import HTMLResponse, JSONResponse
+from pydantic import BaseModel
 
 # ==================== 設定 ====================
 HOST = "0.0.0.0"
@@ -126,6 +128,33 @@ class Game2048Server:
 
 # グローバルゲームインスタンス
 game: Optional[Game2048Server] = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """FastAPIのライフサイクル管理"""
+    global game
+    game = Game2048Server()
+    print("=" * 50)
+    print("  2048 Experience Collector")
+    print("=" * 50)
+    print(f"  ブラウザで http://{HOST}:{PORT} を開いてください")
+    print(f"  Experienceの保存先: {os.path.abspath(EXPERIENCE_DIR)}/")
+    print(f"  終了: Ctrl+C")
+    print("=" * 50)
+    yield
+    # シャットダウン時に未保存のexperienceを保存
+    if game and game.episode_experiences:
+        game._save_experience()
+        print("\n[保存] 未保存のエピソードを保存しました")
+    print("\nサーバーを終了しました")
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+class StepRequest(BaseModel):
+    action: int
 
 # HTML/JS/CSSを埋め込み
 HTML_PAGE = r"""<!DOCTYPE html>
@@ -768,74 +797,40 @@ document.addEventListener('visibilitychange', () => {
 </html>"""
 
 
-class GameRequestHandler(SimpleHTTPRequestHandler):
-    """HTTPリクエストハンドラ"""
+# ============================================================
+# FastAPI routes
+# ============================================================
 
-    def do_GET(self):
-        if self.path == "/" or self.path == "/index.html":
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.end_headers()
-            self.wfile.write(HTML_PAGE.encode("utf-8"))
-        else:
-            self.send_error(404)
+@app.get("/", response_class=HTMLResponse)
+async def index():
+    return HTML_PAGE
 
-    def do_POST(self):
-        global game
-        assert game is not None
-        content_length = int(self.headers.get("Content-Length", 0))
-        body = self.rfile.read(content_length) if content_length > 0 else b""
 
-        if self.path == "/api/reset":
-            state = game.reset()
-            self._json_response(state)
+@app.post("/api/reset")
+async def api_reset():
+    assert game is not None
+    state = game.reset()
+    return JSONResponse(content=state)
 
-        elif self.path == "/api/step":
-            data = json.loads(body)
-            action = int(data["action"])
-            state = game.step(action)
-            self._json_response(state)
 
-        elif self.path == "/api/save":
-            if game.episode_experiences:
-                game._save_experience()
-                game.episode_experiences = []
-            self._json_response({"ok": True})
+@app.post("/api/step")
+async def api_step(req: StepRequest):
+    assert game is not None
+    state = game.step(req.action)
+    return JSONResponse(content=state)
 
-        else:
-            self.send_error(404)
 
-    def _json_response(self, data):
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
-        self.end_headers()
-        self.wfile.write(json.dumps(data).encode("utf-8"))
-
-    def log_message(self, format, *args):
-        # アクセスログを抑制(stepごとに出ると邪魔なため)
-        pass
+@app.post("/api/save")
+async def api_save():
+    assert game is not None
+    if game.episode_experiences:
+        game._save_experience()
+        game.episode_experiences = []
+    return JSONResponse(content={"ok": True})
 
 
 def main():
-    global game
-    game = Game2048Server()
-    server = HTTPServer((HOST, PORT), GameRequestHandler)
-    print("=" * 50)
-    print("  2048 Experience Collector")
-    print("=" * 50)
-    print(f"  ブラウザで http://{HOST}:{PORT} を開いてください")
-    print(f"  Experienceの保存先: {os.path.abspath(EXPERIENCE_DIR)}/")
-    print(f"  終了: Ctrl+C")
-    print("=" * 50)
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        # 未保存のexperienceがあれば保存
-        if game.episode_experiences:
-            game._save_experience()
-            print("\n[保存] 未保存のエピソードを保存しました")
-        print("\nサーバーを終了しました")
-        server.server_close()
+    uvicorn.run(app, host=HOST, port=PORT, log_level="warning")
 
 
 if __name__ == "__main__":

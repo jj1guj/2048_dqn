@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "fastapi>=0.134.0",
     "gymnasium==1.2.1",
     "gymnasium-2048>=0.1.0",
     "imageio>=2.37.2",
@@ -12,4 +13,5 @@ dependencies = [
     "pygame>=2.6.1",
     "torch>=2.10.0",
     "torchvision>=0.25.0",
+    "uvicorn>=0.41.0",
 ]
