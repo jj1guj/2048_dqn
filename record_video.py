@@ -66,14 +66,47 @@ async def record():
 
             print("[録画] AI自動プレイを開始...")
 
+            # コンソールログを表示（デバッグ用）
+            page.on("console", lambda msg: print(f"  [browser] {msg.text}") if msg.type == "error" else None)
+
             # AI Playボタンをクリック
             await page.click("#auto-play-btn")
 
-            # Game Overオーバーレイが表示されるまで待つ (最大5分)
-            await page.wait_for_selector(
-                "#game-over.active", timeout=300_000
-            )
-            print("[録画] ゲーム終了を検出")
+            # Game Overオーバーレイが表示されるまでポーリングで待つ (最大5分)
+            game_over = False
+            last_score = 0
+            last_max = 0
+            last_steps = 0
+            for i in range(3000):  # 最大300秒 (100ms * 3000)
+                is_active = await page.evaluate(
+                    "document.getElementById('game-over').classList.contains('active')"
+                )
+                if is_active:
+                    game_over = True
+                    break
+                # 2秒ごとに進行状況を表示
+                if i % 20 == 0 and i > 0:
+                    status = await page.evaluate("""(() => {
+                        return {
+                            score: document.getElementById('score').textContent,
+                            max: document.getElementById('max-tile').textContent,
+                            steps: document.getElementById('steps').textContent,
+                        };
+                    })()""")
+                    score = status.get("score", "?")
+                    max_tile = status.get("max", "?")
+                    steps = status.get("steps", "?")
+                    if score != last_score or max_tile != last_max or steps != last_steps:
+                        print(f"  [進行中] Score: {score} | Max Tile: {max_tile} | Steps: {steps}")
+                        last_score = score
+                        last_max = max_tile
+                        last_steps = steps
+                await page.wait_for_timeout(100)
+
+            if game_over:
+                print("[録画] ゲーム終了を検出")
+            else:
+                print("[警告] タイムアウト: ゲーム終了を検出できませんでした")
 
             # 少し待ってから終了（Game Overの表示を撮る）
             await page.wait_for_timeout(3000)
