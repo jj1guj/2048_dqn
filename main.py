@@ -127,6 +127,7 @@ def train():
         while not episode_over:
             action = now_policy_train(state)
             next_state, reward, terminated, truncated, info = env.step(action)
+            reward = np.log2(float(reward) + 1)
             episode_over = terminated or truncated
             experience = (state, action, reward, next_state, episode_over)
 
