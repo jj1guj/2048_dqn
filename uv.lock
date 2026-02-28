@@ -3,6 +3,37 @@ revision = 3
 requires-python = ">=3.12"
 
 [[package]]
+name = "2048-dqn"
+version = "0.1.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "fastapi" },
+    { name = "gymnasium" },
+    { name = "gymnasium-2048" },
+    { name = "imageio" },
+    { name = "numpy" },
+    { name = "playwright" },
+    { name = "pygame" },
+    { name = "torch" },
+    { name = "torchvision" },
+    { name = "uvicorn" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.134.0" },
+    { name = "gymnasium", specifier = "==1.2.1" },
+    { name = "gymnasium-2048", specifier = ">=0.1.0" },
+    { name = "imageio", specifier = ">=2.37.2" },
+    { name = "numpy", specifier = ">=2.4.2" },
+    { name = "playwright", specifier = ">=1.58.0" },
+    { name = "pygame", specifier = ">=2.6.1" },
+    { name = "torch", specifier = ">=2.10.0" },
+    { name = "torchvision", specifier = ">=0.25.0" },
+    { name = "uvicorn", specifier = ">=0.41.0" },
+]
+
+[[package]]
 name = "annotated-doc"
 version = "0.0.4"
 source = { registry = "https://pypi.org/simple" }
@@ -31,37 +62,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/96/f0/5eb65b2bb0d09ac6776f2eb54adee6abe8228ea05b20a5ad0e4945de8aac/anyio-4.12.1.tar.gz", hash = "sha256:41cfcc3a4c85d3f05c932da7c26d0201ac36f72abd4435ba90d0464a3ffed703", size = 228685, upload-time = "2026-01-06T11:45:21.246Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/38/0e/27be9fdef66e72d64c0cdc3cc2823101b80585f8119b5c112c2e8f5f7dab/anyio-4.12.1-py3-none-any.whl", hash = "sha256:d405828884fc140aa80a3c667b8beed277f1dfedec42ba031bd6ac3db606ab6c", size = 113592, upload-time = "2026-01-06T11:45:19.497Z" },
-]
-
-[[package]]
-name = "cartpole-dqn"
-version = "0.1.0"
-source = { virtual = "." }
-dependencies = [
-    { name = "fastapi" },
-    { name = "gymnasium" },
-    { name = "gymnasium-2048" },
-    { name = "imageio" },
-    { name = "numpy" },
-    { name = "playwright" },
-    { name = "pygame" },
-    { name = "torch" },
-    { name = "torchvision" },
-    { name = "uvicorn" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "fastapi", specifier = ">=0.134.0" },
-    { name = "gymnasium", specifier = "==1.2.1" },
-    { name = "gymnasium-2048", specifier = ">=0.1.0" },
-    { name = "imageio", specifier = ">=2.37.2" },
-    { name = "numpy", specifier = ">=2.4.2" },
-    { name = "playwright", specifier = ">=1.58.0" },
-    { name = "pygame", specifier = ">=2.6.1" },
-    { name = "torch", specifier = ">=2.10.0" },
-    { name = "torchvision", specifier = ">=0.25.0" },
-    { name = "uvicorn", specifier = ">=0.41.0" },
 ]
 
 [[package]]

@@ -25,9 +25,11 @@ replay_buffer = ReplayBuffer(buffer_size, batch_size)
 lr = 1e-4
 optimizer = torch.optim.Adam(q_net.parameters(), lr=lr)
 
-change_epsilon = 1.0
+start_epsilon = 1.0
+change_epsilon = start_epsilon
 epsilon_decay = 0.995
 epsilon_min = 0.05
+epsilon_reset_cycle = 3000
 
 gamma = 0.99
 tau = 0.005  # ソフトターゲット更新率
@@ -121,6 +123,7 @@ def soft_update_target():
 def train():
     global best_weight
     global change_epsilon
+    global start_epsilon
     max_reward = 0
     total_steps = 0
     for episode in range(episodes):
@@ -163,6 +166,9 @@ def train():
 
         print(f'Episode: {episode}, Total Reward: {total_reward:.1f}, Max Tile: {max_tile}, Steps: {time_step}, Epsilon: {change_epsilon:.3f}')
         change_epsilon = max(epsilon_min, change_epsilon * epsilon_decay)
+        if (episode + 1) % epsilon_reset_cycle == 0:
+            change_epsilon = start_epsilon
+            start_epsilon /= 2
         if total_reward > max_reward:
             max_reward = total_reward
             best_weight = q_net.state_dict()
