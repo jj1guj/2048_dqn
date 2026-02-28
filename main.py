@@ -156,7 +156,7 @@ def train():
 
             state = next_state
             total_steps += 1
-            if total_steps % 4 == 0 and len(replay_buffer) >= batch_size:
+            if total_steps % 2 == 0 and len(replay_buffer) >= batch_size * 10:
                 states, actions, rewards, next_states, terminateds = replay_buffer.sampling()
                 tderror(states, actions, next_states, rewards, terminateds)
                 # ソフトターゲット更新（学習ごとに少しずつ更新）
