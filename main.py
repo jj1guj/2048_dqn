@@ -24,7 +24,7 @@ replay_buffer = ReplayBuffer(buffer_size, batch_size)
 
 lr = 1e-4
 optimizer = torch.optim.Adam(q_net.parameters(), lr=lr)
-scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=100, factor=0.5)
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=100, factor=0.5, min_lr=1e-6)
 
 start_epsilon = 0.05
 change_epsilon = start_epsilon
