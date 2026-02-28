@@ -25,39 +25,32 @@ class N_Network(nn.Module):
     def __init__(self, blocks=3, channels=128):
         super().__init__()
 
-        # 4x4 ボードをそのまま処理（アップサンプリング不要）
-        self.input_conv = nn.Sequential(
-            nn.Conv2d(16, channels, kernel_size=3, padding=1),
-            nn.BatchNorm2d(channels),
+        input_dim = 4 * 4 * 16
+
+        self.shared = nn.Sequential(
+            nn.Linear(input_dim, 512),
+            nn.ReLU(),
+            nn.Linear(512, 512),
+            nn.ReLU(),
+            nn.Linear(512, 256),
             nn.ReLU(),
         )
 
-        self.blocks = nn.Sequential(
-            *[ResNetBlock(channels) for _ in range(blocks)]
-        )
-
-        # Dueling DQN: Value + Advantage ストリーム
         self.value_stream = nn.Sequential(
-            nn.Linear(channels * 4 * 4, 512),
+            nn.Linear(256, 128),
             nn.ReLU(),
-            nn.Linear(512, 1),
+            nn.Linear(128, 1)
         )
         self.advantage_stream = nn.Sequential(
-            nn.Linear(channels * 4 * 4, 512),
+            nn.Linear(256, 128),
             nn.ReLU(),
-            nn.Linear(512, 4),
+            nn.Linear(128, 4),
         )
 
     def forward(self, x):
-        # (batch, H, W, C) -> (batch, C, H, W)
-        if x.dim() == 4 and x.shape[-1] == 16:
-            x = x.permute(0, 3, 1, 2)
-        elif x.dim() == 3 and x.shape[-1] == 16:
-            x = x.permute(2, 0, 1).unsqueeze(0)
-
-        out = self.input_conv(x)
-        out = self.blocks(out)
-        out = out.flatten(1)
+        # (batch, 4, 4, 16) → (batch, 256)
+        out = x.reshape(x.size(0) if x.dim() == 4 else 1, -1).float()
+        out = self.shared(out)
 
         value = self.value_stream(out)
         advantage = self.advantage_stream(out)
