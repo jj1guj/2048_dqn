@@ -39,12 +39,12 @@ class N_Network(nn.Module):
         )
 
         self.value_stream = nn.Sequential(
-            nn.Linear(256, 128),
+            nn.Linear(512, 128),
             nn.ReLU(),
             nn.Linear(128, 1)
         )
         self.advantage_stream = nn.Sequential(
-            nn.Linear(256, 128),
+            nn.Linear(512, 128),
             nn.ReLU(),
             nn.Linear(128, 4),
         )
