@@ -33,7 +33,7 @@ gamma = 0.99
 
 episodes = 10000
 
-td_interval = 1000
+td_interval = 500
 
 def get_legal_actions(obs):
     """観測から合法手のリストを返す (4x4x16 one-hot → 4x4 board)"""
