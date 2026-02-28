@@ -141,7 +141,7 @@ def train():
             replay_buffer.add(experience)
 
             state = next_state
-            if len(replay_buffer) >= batch_size:
+            if time_step % 4 == 0 and len(replay_buffer) >= batch_size:
                 states, actions, rewards, next_states, terminateds = replay_buffer.sampling()
                 tderror(states, actions, next_states, rewards, terminateds)
 
