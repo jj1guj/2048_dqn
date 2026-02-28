@@ -167,8 +167,9 @@ def train():
         print(f'Episode: {episode}, Total Reward: {total_reward:.1f}, Max Tile: {max_tile}, Steps: {time_step}, Epsilon: {change_epsilon:.3f}')
         change_epsilon = max(epsilon_min, change_epsilon * epsilon_decay)
         if (episode + 1) % epsilon_reset_cycle == 0:
-            change_epsilon = start_epsilon
             start_epsilon /= 2
+            change_epsilon = start_epsilon
+
         if total_reward > max_reward:
             max_reward = total_reward
             best_weight = q_net.state_dict()
