@@ -68,19 +68,23 @@ def tderror(states, actions, next_states, rewards, terminateds):
 
 def train():
     global best_weight
+    max_reward = 0
     for episode in range(episodes):
         state, _ = env.reset()
         time_step = 0
         episode_over = False
         noise = 0
         total_reward = 0
-        max_reward = 0
+        max_tile = 0
 
         while not episode_over:
             action = now_policy_train(state)
             next_state, reward, terminated, truncated, info = env.step(action)
             episode_over = terminated or truncated
             experience = (state, action, reward, next_state, episode_over)
+
+            if info["max"] > 0:
+                max_tile = max(max_tile, int(2 ** info["max"]))
 
             replay_buffer.add(experience)
 
@@ -97,7 +101,7 @@ def train():
             time_step += 1
             w = q_net.state_dict()
 
-        print(f'Episode: {episode}, Total Reward: {total_reward}, Time Step: {time_step}')
+        print(f'Episode: {episode}, Total Reward: {total_reward}, Max Tile: {max_tile}, Time Step: {time_step}')
         if total_reward > max_reward:
             max_reward = total_reward
             best_weight = q_net.state_dict()
