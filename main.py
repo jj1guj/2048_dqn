@@ -7,7 +7,8 @@ import time
 import torch
 
 from n_network import N_Network
-from replay_buffer import ReplayBuffer, Experience
+from replay_buffer import Experience
+from priorized_replay_buffer import PrioritizedReplayBuffer
 from n_step_buffer import NStepBuffer
 
 logger = logging.getLogger("train")
@@ -36,9 +37,13 @@ t_net.load_state_dict(q_net.state_dict())
 t_net.eval()
 best_weight = q_net.state_dict()
 
+episodes = 50000
+
 buffer_size = 1000000
 batch_size = 128
-replay_buffer = ReplayBuffer(buffer_size, batch_size)
+replay_buffer = PrioritizedReplayBuffer(buffer_size, batch_size, 
+                                        alpha=0.6, beta_start=0.4, 
+                                        beta_end=1.0, beta_frames=episodes)
 
 lr = 1e-4
 optimizer = torch.optim.Adam(q_net.parameters(), lr=lr)
@@ -55,8 +60,6 @@ tau = 0.005  # ソフトターゲット更新率
 
 n_step = 5
 n_step_buffer = NStepBuffer(n_step, gamma)
-
-episodes = 50000
 
 def get_legal_actions(obs):
     """観測から合法手のリストを返す (4x4x16 one-hot → 4x4 board)"""
@@ -116,8 +119,11 @@ def now_policy(state):
         return (q + mask).argmax().item()
         
 
-def tderror(states, actions, next_states, rewards, terminateds):
-    states, actions, next_states, rewards, terminateds = states.to(device), actions.to(device), next_states.to(device), rewards.to(device), terminateds.to(device)
+def tderror(states, actions, next_states, rewards, terminateds, weights):
+    states, actions, next_states, rewards, terminateds, weights = (
+        states.to(device), actions.to(device), next_states.to(device),
+        rewards.to(device), terminateds.to(device), weights.to(device)
+    )
     actions = actions.long().unsqueeze(1)
     q_values = q_net(states.float())
     q_value = q_values.gather(1, actions).squeeze()
@@ -128,13 +134,20 @@ def tderror(states, actions, next_states, rewards, terminateds):
         next_q_value = t_net(next_states.float()).gather(1, next_actions).squeeze()
         q_value_target = rewards + (1 - terminateds) * (gamma ** n_step) * next_q_value
 
+
+    td_errors = (q_value - q_value_target).detach().cpu().numpy()
+
+    # IS重みで補正したHuber Loss
     # Huber Loss (SmoothL1) は外れ値に対してMSEより安定
-    loss = torch.nn.SmoothL1Loss()(q_value, q_value_target)
+    element_loss = torch.nn.SmoothL1Loss(reduction='none')(q_value, q_value_target)
+    loss = (weights * element_loss).mean()
 
     optimizer.zero_grad()
     loss.backward()
     torch.nn.utils.clip_grad_norm_(q_net.parameters(), max_norm=1.0)
     optimizer.step()
+
+    return td_errors
 
 def soft_update_target():
     """ソフトターゲット更新 (Polyak averaging)"""
@@ -184,8 +197,9 @@ def train():
             state = next_state
             total_steps += 1
             if total_steps % 2 == 0 and len(replay_buffer) >= batch_size * 10:
-                states, actions, rewards, next_states, terminateds = replay_buffer.sampling()
-                tderror(states, actions, next_states, rewards, terminateds)
+                states, actions, rewards, next_states, terminateds, indices, weights = replay_buffer.sampling()
+                td_errors = tderror(states, actions, next_states, rewards, terminateds, weights)
+                replay_buffer.update_priorities(indices, td_errors)
                 # ソフトターゲット更新（学習ごとに少しずつ更新）
                 soft_update_target()
 
