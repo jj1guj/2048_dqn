@@ -49,9 +49,9 @@ lr = 1e-4
 optimizer = torch.optim.Adam(q_net.parameters(), lr=lr)
 # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=500, factor=0.5, min_lr=1e-6)
 
-start_epsilon = 1.0
+start_epsilon = 0.05
 change_epsilon = start_epsilon
-epsilon_decay = 0.999
+epsilon_decay = 1
 epsilon_min = 0.01
 epsilon_reset_cycle = 3000
 
