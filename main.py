@@ -1,12 +1,27 @@
 import gymnasium as gym
 import imageio
+import logging
 import numpy as np
 import random
 import time
 import torch
 
 from n_network import N_Network
-from replay_buffer import ReplayBuffer
+logger = logging.getLogger("train")
+logger.setLevel(logging.INFO)
+
+stream_handler = logging.StreamHandler()
+stream_handler.setLevel(logging.INFO)
+
+file_handler = logging.FileHandler("train_log.txt", mode="w")
+file_handler.setLevel(logging.INFO)
+
+formatter = logging.Formatter("%(asctime)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+stream_handler.setFormatter(formatter)
+file_handler.setFormatter(formatter)
+
+logger.addHandler(stream_handler)
+logger.addHandler(file_handler)
 
 env = gym.make("gymnasium_2048:gymnasium_2048/TwentyFortyEight-v0", size=4, max_pow=16)
 
@@ -166,7 +181,7 @@ def train():
             time_step += 1
 
         current_lr = optimizer.param_groups[0]['lr']
-        print(f'Episode: {episode}, Total Reward: {total_reward:.1f}, Max Tile: {max_tile}, Steps: {time_step}, Epsilon: {change_epsilon:.3f}, LR: {current_lr:.2e}')
+        logger.info(f'Episode: {episode}, Total Reward: {total_reward:.1f}, Max Tile: {max_tile}, Steps: {time_step}, Epsilon: {change_epsilon:.3f}, LR: {current_lr:.2e}')
         change_epsilon = max(epsilon_min, change_epsilon * epsilon_decay)
         scheduler.step(total_reward)
         if (episode + 1) % epsilon_reset_cycle == 0:
