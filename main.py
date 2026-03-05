@@ -88,17 +88,6 @@ def is_move_legal(board, action):
                 return True
     return False
 
-def now_policy_train(state):
-    legal = get_legal_actions(state)
-    s = torch.FloatTensor(state).unsqueeze(0).to(device)
-    with torch.no_grad():
-        q = q_net(s).squeeze()
-        # 違法手を-infでマスク
-        mask = torch.full((4,), float('-inf'), device=device)
-        for a in legal:
-            mask[a] = 0
-        return (q + mask).argmax().item()
-
 def now_policy(state):
     legal = get_legal_actions(state)
     s = torch.FloatTensor(state).unsqueeze(0).to(device)
@@ -163,7 +152,7 @@ def train():
         n_step_buffer.reset()
 
         while not episode_over:
-            action = now_policy_train(state)
+            action = now_policy(state)
             next_state, reward, terminated, truncated, info = env.step(action)
             reward = np.log2(float(reward) + 1)
             episode_over = terminated or truncated
