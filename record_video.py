@@ -10,6 +10,7 @@
 """
 
 import asyncio
+from datetime import datetime
 import shutil
 import subprocess
 import sys
@@ -115,11 +116,12 @@ async def record():
             await context.close()
             await browser.close()
 
-        # 保存された動画ファイルを探してMP4に変換
+        # 保存された動画ファイルを探してMP4に変換（タイムスタンプ付きファイル名）
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         video_files = list(output_dir.glob("*.webm"))
         if video_files:
             latest_webm = max(video_files, key=lambda f: f.stat().st_mtime)
-            mp4_path = latest_webm.with_suffix(".mp4")
+            mp4_path = output_dir / f"2048_{timestamp}.mp4"
 
             if shutil.which("ffmpeg"):
                 print(f"[変換] {latest_webm.name} → {mp4_path.name}")
@@ -136,10 +138,14 @@ async def record():
                     latest_webm.unlink()  # webmを削除
                     print(f"[完了] 録画保存先: {mp4_path}")
                 else:
-                    print(f"[警告] ffmpeg変換失敗。webmのまま保存: {latest_webm}")
+                    webm_path = output_dir / f"2048_{timestamp}.webm"
+                    latest_webm.rename(webm_path)
+                    print(f"[警告] ffmpeg変換失敗。webmのまま保存: {webm_path}")
                     print(result.stderr.decode())
             else:
-                print(f"[完了] 録画保存先: {latest_webm}")
+                webm_path = output_dir / f"2048_{timestamp}.webm"
+                latest_webm.rename(webm_path)
+                print(f"[完了] 録画保存先: {webm_path}")
                 print(f"[ヒント] ffmpegをインストールすれば自動でMP4に変換されます")
         else:
             print("[完了] 録画ファイルが見つかりません。./videos/ を確認してください")
