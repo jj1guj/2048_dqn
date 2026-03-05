@@ -44,10 +44,10 @@ lr = 1e-4
 optimizer = torch.optim.Adam(q_net.parameters(), lr=lr)
 # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=500, factor=0.5, min_lr=1e-6)
 
-start_epsilon = 0.05
+start_epsilon = 1.0
 change_epsilon = start_epsilon
-epsilon_decay = 1
-epsilon_min = 0.05
+epsilon_decay = 0.999
+epsilon_min = 0.01
 epsilon_reset_cycle = 3000
 
 gamma = 0.99
@@ -202,11 +202,13 @@ def train():
         # scheduler.step(total_reward)
         if (episode + 1) % epsilon_reset_cycle == 0:
             # start_epsilon = max(0.3, start_epsilon / 2)
-            change_epsilon = start_epsilon
+            # change_epsilon = start_epsilon
+            pass
 
         if total_reward > max_reward:
             max_reward = total_reward
             best_weight = q_net.state_dict()
+            torch.save(best_weight, 'model.pth')
 
 
 def main():
