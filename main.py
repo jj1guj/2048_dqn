@@ -7,6 +7,9 @@ import time
 import torch
 
 from n_network import N_Network
+from replay_buffer import ReplayBuffer, Experience
+from n_step_buffer import NStepBuffer
+
 logger = logging.getLogger("train")
 logger.setLevel(logging.INFO)
 
@@ -49,6 +52,9 @@ epsilon_reset_cycle = 3000
 
 gamma = 0.99
 tau = 0.005  # ソフトターゲット更新率
+
+n_step = 5
+n_step_buffer = NStepBuffer(n_step, gamma)
 
 episodes = 50000
 
@@ -120,7 +126,7 @@ def tderror(states, actions, next_states, rewards, terminateds):
         # Double DQN: q_netでアクション選択、t_netで評価
         next_actions = q_net(next_states.float()).argmax(1, keepdim=True)
         next_q_value = t_net(next_states.float()).gather(1, next_actions).squeeze()
-        q_value_target = rewards + (1 - terminateds) * gamma * next_q_value
+        q_value_target = rewards + (1 - terminateds) * (gamma ** n_step) * next_q_value
 
     # Huber Loss (SmoothL1) は外れ値に対してMSEより安定
     loss = torch.nn.SmoothL1Loss()(q_value, q_value_target)
@@ -148,6 +154,7 @@ def train():
         episode_over = False
         total_reward = 0
         max_tile = 0
+        n_step_buffer.reset()
 
         while not episode_over:
             action = now_policy_train(state)
@@ -161,13 +168,18 @@ def train():
                     max_tile = current_tile
                     reward += float(info["max"])
 
-            experience = (state, action, reward, next_state, episode_over)
-
             # 違法手はバッファに入れない＆次のアクションを試す
             if not info["is_legal"]:
                 continue
 
-            replay_buffer.add(experience)
+            # 1-step experienceをn_step_bufferに追加
+            one_step = (state, action, reward, next_state, episode_over)
+            n_step_buffer.add(Experience(*one_step))
+
+            # n-stepバッファが溜まったらn-step遷移をReplayBufferに追加
+            if n_step_buffer.is_ready():
+                nstep_exp = n_step_buffer.get()
+                replay_buffer.add(nstep_exp)
 
             state = next_state
             total_steps += 1
@@ -179,6 +191,10 @@ def train():
 
             total_reward += float(reward)
             time_step += 1
+
+        # エピソード終了時に残りすべてをflush
+        for exp in n_step_buffer.flush():
+            replay_buffer.add(exp)
 
         current_lr = optimizer.param_groups[0]['lr']
         logger.info(f'Episode: {episode}, Total Reward: {total_reward:.1f}, Max Tile: {max_tile}, Steps: {time_step}, Epsilon: {change_epsilon:.3f}, LR: {current_lr:.2e}')
