@@ -49,12 +49,6 @@ lr = 1e-4
 optimizer = torch.optim.Adam(q_net.parameters(), lr=lr)
 # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=500, factor=0.5, min_lr=1e-6)
 
-start_epsilon = 0.05
-change_epsilon = start_epsilon
-epsilon_decay = 1
-epsilon_min = 0.01
-epsilon_reset_cycle = 3000
-
 gamma = 0.99
 tau = 0.005  # ソフトターゲット更新率
 
@@ -96,17 +90,14 @@ def is_move_legal(board, action):
 
 def now_policy_train(state):
     legal = get_legal_actions(state)
-    if np.random.rand() <= change_epsilon:
-        return random.choice(legal)
-    else:
-        s = torch.FloatTensor(state).unsqueeze(0).to(device)
-        with torch.no_grad():
-            q = q_net(s).squeeze()
-            # 違法手を-infでマスク
-            mask = torch.full((4,), float('-inf'), device=device)
-            for a in legal:
-                mask[a] = 0
-            return (q + mask).argmax().item()
+    s = torch.FloatTensor(state).unsqueeze(0).to(device)
+    with torch.no_grad():
+        q = q_net(s).squeeze()
+        # 違法手を-infでマスク
+        mask = torch.full((4,), float('-inf'), device=device)
+        for a in legal:
+            mask[a] = 0
+        return (q + mask).argmax().item()
 
 def now_policy(state):
     legal = get_legal_actions(state)
@@ -157,11 +148,13 @@ def soft_update_target():
 
 def train():
     global best_weight
-    global change_epsilon
-    global start_epsilon
     max_reward = 0
     total_steps = 0
     for episode in range(episodes):
+        # ノイズをリセット
+        q_net.reset_noise()
+        t_net.reset_noise()
+
         state, _ = env.reset()
         time_step = 0
         episode_over = False
@@ -197,6 +190,8 @@ def train():
             state = next_state
             total_steps += 1
             if total_steps % 2 == 0 and len(replay_buffer) >= batch_size * 10:
+                # 学習ステップでノイズをリセット
+                q_net.reset_noise()
                 states, actions, rewards, next_states, terminateds, indices, weights = replay_buffer.sampling()
                 td_errors = tderror(states, actions, next_states, rewards, terminateds, weights)
                 replay_buffer.update_priorities(indices, td_errors)
@@ -211,13 +206,7 @@ def train():
             replay_buffer.add(exp)
 
         current_lr = optimizer.param_groups[0]['lr']
-        logger.info(f'Episode: {episode}, Total Reward: {total_reward:.1f}, Max Tile: {max_tile}, Steps: {time_step}, Epsilon: {change_epsilon:.3f}, LR: {current_lr:.2e}')
-        change_epsilon = max(epsilon_min, change_epsilon * epsilon_decay)
-        # scheduler.step(total_reward)
-        if (episode + 1) % epsilon_reset_cycle == 0:
-            # start_epsilon = max(0.3, start_epsilon / 2)
-            # change_epsilon = start_epsilon
-            pass
+        logger.info(f'Episode: {episode}, Total Reward: {total_reward:.1f}, Max Tile: {max_tile}, Steps: {time_step}, LR: {current_lr:.2e}')
 
         if total_reward > max_reward:
             max_reward = total_reward
