@@ -91,16 +91,17 @@ class N_Network(nn.Module):
     def __init__(self, blocks=3, channels=128):
         super().__init__()
 
-        input_dim = 4 * 4 * 16
-
+        self.conv = nn.Sequential(
+            nn.Conv2d(16, 128, kernel_size=3, padding=1),  # (128, 4, 4)
+            nn.ReLU(),
+            nn.Conv2d(128, 128, kernel_size=3, padding=1),  # (128, 4, 4)
+            nn.ReLU(),
+            nn.Conv2d(128, 128, kernel_size=3, padding=1),  # (128, 4, 4)
+            nn.ReLU(),
+        )
+        # 128 * 4 * 4 = 2048
         self.shared = nn.Sequential(
-            nn.Linear(input_dim, 256),
-            nn.ReLU(),
-            nn.Linear(256, 1024),
-            nn.ReLU(),
-            nn.Linear(1024, 1024),
-            nn.ReLU(),
-            nn.Linear(1024, 512),
+            nn.Linear(2048, 512),
             nn.ReLU(),
         )
 
