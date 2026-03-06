@@ -88,28 +88,29 @@ class ResNetBlock(nn.Module):
 
 
 class N_Network(nn.Module):
-    def __init__(self):
+    def __init__(self, blocks=3, channels=128):
         super().__init__()
 
-        input_dim = 4 * 4 * 16  # 256
+        input_dim = 4 * 4 * 16
 
         self.shared = nn.Sequential(
-            nn.Linear(input_dim, 512),
-            nn.LayerNorm(512),
+            nn.Linear(input_dim, 256),
             nn.ReLU(),
-            nn.Linear(512, 256),
-            nn.LayerNorm(256),
+            nn.Linear(256, 1024),
+            nn.ReLU(),
+            nn.Linear(1024, 1024),
+            nn.ReLU(),
+            nn.Linear(1024, 512),
             nn.ReLU(),
         )
 
-        # Dueling DQN
         self.value_stream = nn.Sequential(
-            NoisyLinear(256, 128),
+            NoisyLinear(512, 128),
             nn.ReLU(),
             NoisyLinear(128, 1)
         )
         self.advantage_stream = nn.Sequential(
-            NoisyLinear(256, 128),
+            NoisyLinear(512, 128),
             nn.ReLU(),
             NoisyLinear(128, 4),
         )
@@ -119,12 +120,11 @@ class N_Network(nn.Module):
         out = x.reshape(x.size(0) if x.dim() == 4 else 1, -1).float()
         out = self.shared(out)
 
-        value = self.value_stream(out)        # (batch, 1)
-        advantage = self.advantage_stream(out) # (batch, 4)
-
+        value = self.value_stream(out)
+        advantage = self.advantage_stream(out)
         # Q = V + (A - mean(A))
         q = value + advantage - advantage.mean(dim=1, keepdim=True)
-        return q  # (batch, 4)
+        return q
     
     def reset_noise(self):
         # 全NoisyLinear層のノイズをリサンプル
