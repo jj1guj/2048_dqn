@@ -117,8 +117,12 @@ class N_Network(nn.Module):
         )
 
     def forward(self, x):
-        # (batch, 4, 4, 16) → (batch, 256)
-        out = x.reshape(x.size(0) if x.dim() == 4 else 1, -1).float()
+        # (batch, 4, 4, 16) → (batch, 16, 4, 4)
+        if x.dim() == 3:
+            x = x.unsqueeze(0)
+        out = x.permute(0, 3, 1, 2).float()
+        out = self.conv(out)
+        out = out.reshape(out.size(0), -1)  # flatten
         out = self.shared(out)
 
         value = self.value_stream(out)
