@@ -91,8 +91,13 @@ class N_Network(nn.Module):
     def __init__(self, blocks=3, channels=128):
         super().__init__()
 
+        # 1×1 Conv: 16ch one-hot → 32ch dense embedding (per-pixel)
+        self.embed = nn.Sequential(
+            nn.Conv2d(16, 32, kernel_size=1),
+            nn.ReLU(),
+        )
         self.conv = nn.Sequential(
-            nn.Conv2d(16, 128, kernel_size=3, padding=1),  # (128, 4, 4)
+            nn.Conv2d(32, 128, kernel_size=3, padding=1),  # (128, 4, 4)
             nn.ReLU(),
             nn.Conv2d(128, 128, kernel_size=3, padding=1),  # (128, 4, 4)
             nn.ReLU(),
@@ -121,6 +126,7 @@ class N_Network(nn.Module):
         if x.dim() == 3:
             x = x.unsqueeze(0)
         out = x.permute(0, 3, 1, 2).float()
+        out = self.embed(out)
         out = self.conv(out)
         out = out.reshape(out.size(0), -1)  # flatten
         out = self.shared(out)
