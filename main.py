@@ -88,6 +88,36 @@ def is_move_legal(board, action):
                 return True
     return False
 
+def board_shaping_reward(obs):
+    """ボード状態に基づくシェーピング報酬（右下コーナー戦略）"""
+    board = obs.argmax(axis=-1)  # (4,4) log2値
+    max_val = board.max()
+
+    # 1. コーナーボーナス: 最大タイルが右下角にあれば加点
+    corner_bonus = 0.0
+    if board[3][3] == max_val:
+        corner_bonus = float(max_val) * 0.1
+
+    # 2. 単調性: 右下角から左・上方向に降順であるほど加点
+    #    理想配置: 右下が最大、左・上に向かって小さくなる
+    mono = 0.0
+    for i in range(4):
+        for j in range(3):
+            # 行: 右→左が降順 (j+1 < j の方向)
+            if board[i][3-j] >= board[i][3-j-1]:
+                mono += 1
+            # 列: 下→上が降順
+            if board[3-j][i] >= board[3-j-1][i]:
+                mono += 1
+    mono_bonus = mono * 0.05  # 最大 24*0.05 = 1.2
+
+    # 3. 空きマスボーナス: 空きが多いほど柔軟に動ける
+    empty = float((board == 0).sum())
+    empty_bonus = empty * 0.1
+
+    return corner_bonus + mono_bonus + empty_bonus
+
+
 def now_policy(state):
     legal = get_legal_actions(state)
     s = torch.FloatTensor(state).unsqueeze(0).to(device)
@@ -194,6 +224,9 @@ def train():
                 if current_tile > max_tile:
                     max_tile = current_tile
                     reward += float(info["max"])
+
+            # Reward Shaping: ボード状態に基づく中間報酬
+            reward += board_shaping_reward(next_state)
 
             # 違法手はバッファに入れない＆次のアクションを試す
             if not info["is_legal"]:
