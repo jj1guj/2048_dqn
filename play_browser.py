@@ -894,13 +894,19 @@ async def api_auto_action():
     obs = game.current_obs
     state = torch.FloatTensor(obs).unsqueeze(0)
     with torch.no_grad():
-        q = model(state).squeeze()
+        q = model(state)
+        # QR-DQN: (1, n_quantiles, 4) -> 分位数平均で期待Q値 (4,)
+        if q.dim() == 3:
+            q = q.mean(dim=1)
+        q = q.squeeze(0)
         # 合法手のみを候補にする
         legal = _get_legal_actions(obs)
         mask = torch.full((4,), float('-inf'))
         for a in legal:
             mask[a] = 0
         action = int((q + mask).argmax().item())
+        if action not in legal:
+            action = legal[0]
     return JSONResponse(content={"action": action})
 
 
