@@ -40,7 +40,7 @@ best_weight = q_net.state_dict()
 episodes = 50000
 
 buffer_size = 1000000
-batch_size = 256
+batch_size = 128
 replay_buffer = PrioritizedReplayBuffer(buffer_size, batch_size, 
                                         alpha=0.6, beta_start=0.4, 
                                         beta_end=1.0, beta_frames=episodes)
@@ -122,67 +122,33 @@ def now_policy(state):
     legal = get_legal_actions(state)
     s = torch.FloatTensor(state).unsqueeze(0).to(device)
     with torch.no_grad():
-        q = q_net(s)  # (1, n_quantiles, 4)
-        q_mean = q.mean(dim=1).squeeze()  # (4,) 分位数の平均 = 期待Q値
+        q = q_net(s).squeeze()
         mask = torch.full((4,), float('-inf'), device=device)
         for a in legal:
             mask[a] = 0
-        return (q_mean + mask).argmax().item()
+        return (q + mask).argmax().item()
         
-
-# 分位数の中点 τ_i = (2i - 1) / (2N)
-_n_quantiles = 51
-_taus = torch.arange(1, _n_quantiles + 1, dtype=torch.float32)
-_taus = (2 * _taus - 1) / (2 * _n_quantiles)  # (n_quantiles,)
 
 def tderror(states, actions, next_states, rewards, terminateds, weights):
     states, actions, next_states, rewards, terminateds, weights = (
         states.to(device), actions.to(device), next_states.to(device),
         rewards.to(device), terminateds.to(device), weights.to(device)
     )
-    taus = _taus.to(device)
-    actions = actions.long()
-    batch_size = states.size(0)
-    batch_idx = torch.arange(batch_size, device=device)
-
-    # 現在のQ分位数: (batch, n_quantiles, 4)
-    q_quantiles_all = q_net(states.float())
-    # 選択したアクションの分位数: (batch, n_quantiles)
-    q_quantiles = q_quantiles_all[batch_idx, :, actions]
+    actions = actions.long().unsqueeze(1)
+    q_values = q_net(states.float())
+    q_value = q_values.gather(1, actions).squeeze()
 
     with torch.no_grad():
-        # Double DQN: q_netの平均Q値でアクション選択、t_netの分位数で評価
-        next_q = q_net(next_states.float())  # (batch, n_quantiles, 4)
-        next_actions = next_q.mean(dim=1).argmax(dim=1)  # (batch,)
+        # Double DQN: q_netでアクション選択、t_netで評価
+        next_actions = q_net(next_states.float()).argmax(1, keepdim=True)
+        next_q_value = t_net(next_states.float()).gather(1, next_actions).squeeze()
+        q_value_target = rewards + (1 - terminateds) * (gamma ** n_step) * next_q_value
 
-        next_q_target = t_net(next_states.float())  # (batch, n_quantiles, 4)
-        next_quantiles = next_q_target[batch_idx, :, next_actions]  # (batch, n_quantiles)
+    td_errors = (q_value - q_value_target).detach().cpu().numpy()
 
-        # ターゲット分位数
-        target_quantiles = rewards.unsqueeze(1) + \
-            (1 - terminateds.unsqueeze(1)) * (gamma ** n_step) * next_quantiles
-
-    # PER用TD誤差: 期待Q値の差
-    td_errors = (target_quantiles.mean(dim=1) - q_quantiles.mean(dim=1)).detach().cpu().numpy()
-
-    # Quantile Huber Loss
-    # ペアワイズTD誤差: (batch, n_quantiles, n_quantiles)
-    # delta[b, i, j] = target_j - predicted_i
-    delta = target_quantiles.unsqueeze(1) - q_quantiles.unsqueeze(2)
-
-    # Huber loss (κ=1)
-    huber = torch.where(delta.abs() <= 1.0,
-                        0.5 * delta ** 2,
-                        delta.abs() - 0.5)
-
-    # 分位数回帰の重み: |τ_i - I(δ < 0)|
-    quantile_weights = (taus.view(1, -1, 1) - (delta < 0).float()).abs()
-
-    # サンプルごとのloss: jで和、iで平均
-    loss_per_sample = (quantile_weights * huber).sum(dim=2).mean(dim=1)  # (batch,)
-
-    # IS重みで補正
-    loss = (weights * loss_per_sample).mean()
+    # IS重みで補正したHuber Loss
+    element_loss = torch.nn.SmoothL1Loss(reduction='none')(q_value, q_value_target)
+    loss = (weights * element_loss).mean()
 
     optimizer.zero_grad()
     loss.backward()
@@ -243,7 +209,7 @@ def train():
 
             state = next_state
             total_steps += 1
-            if total_steps % 4 == 0 and len(replay_buffer) >= batch_size * 10:
+            if total_steps % 2 == 0 and len(replay_buffer) >= batch_size * 10:
                 # 学習ステップでノイズをリセット
                 q_net.reset_noise()
                 states, actions, rewards, next_states, terminateds, indices, weights = replay_buffer.sampling()
@@ -261,8 +227,7 @@ def train():
 
         current_lr = optimizer.param_groups[0]['lr']
         logger.info(f'Episode: {episode}, Total Reward: {total_reward:.1f}, Max Tile: {max_tile}, Steps: {time_step}, LR: {current_lr:.2e}')
-        if len(replay_buffer) >= batch_size * 10:
-            scheduler.step()
+        scheduler.step()
 
         if total_reward > max_reward:
             max_reward = total_reward

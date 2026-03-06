@@ -88,37 +88,30 @@ class ResNetBlock(nn.Module):
 
 
 class N_Network(nn.Module):
-    def __init__(self, n_quantiles=51):
+    def __init__(self):
         super().__init__()
-        self.n_quantiles = n_quantiles
 
         input_dim = 4 * 4 * 16  # 256
 
         self.shared = nn.Sequential(
-            nn.Linear(input_dim, 1024),
-            nn.LayerNorm(1024),
-            nn.ReLU(),
-            nn.Linear(1024, 1024),
-            nn.LayerNorm(1024),
-            nn.ReLU(),
-            nn.Linear(1024, 1024),
-            nn.LayerNorm(1024),
-            nn.ReLU(),
-            nn.Linear(1024, 512),
+            nn.Linear(input_dim, 512),
             nn.LayerNorm(512),
+            nn.ReLU(),
+            nn.Linear(512, 256),
+            nn.LayerNorm(256),
             nn.ReLU(),
         )
 
-        # Dueling × QR-DQN: 各ストリームが分位数ごとの値を出力
+        # Dueling DQN
         self.value_stream = nn.Sequential(
-            NoisyLinear(512, 128),
+            NoisyLinear(256, 128),
             nn.ReLU(),
-            NoisyLinear(128, n_quantiles)
+            NoisyLinear(128, 1)
         )
         self.advantage_stream = nn.Sequential(
-            NoisyLinear(512, 128),
+            NoisyLinear(256, 128),
             nn.ReLU(),
-            NoisyLinear(128, n_quantiles * 4),
+            NoisyLinear(128, 4),
         )
 
     def forward(self, x):
@@ -126,14 +119,12 @@ class N_Network(nn.Module):
         out = x.reshape(x.size(0) if x.dim() == 4 else 1, -1).float()
         out = self.shared(out)
 
-        # value: (batch, n_quantiles) → (batch, n_quantiles, 1)
-        value = self.value_stream(out).unsqueeze(2)
-        # advantage: (batch, n_quantiles * 4) → (batch, n_quantiles, 4)
-        advantage = self.advantage_stream(out).view(-1, self.n_quantiles, 4)
+        value = self.value_stream(out)        # (batch, 1)
+        advantage = self.advantage_stream(out) # (batch, 4)
 
-        # Q = V + (A - mean(A))  per quantile
-        q = value + advantage - advantage.mean(dim=2, keepdim=True)
-        return q  # (batch, n_quantiles, 4)
+        # Q = V + (A - mean(A))
+        q = value + advantage - advantage.mean(dim=1, keepdim=True)
+        return q  # (batch, 4)
     
     def reset_noise(self):
         # 全NoisyLinear層のノイズをリサンプル
