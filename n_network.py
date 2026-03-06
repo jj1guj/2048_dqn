@@ -96,12 +96,16 @@ class N_Network(nn.Module):
 
         self.shared = nn.Sequential(
             nn.Linear(input_dim, 1024),
+            nn.LayerNorm(1024),
             nn.ReLU(),
             nn.Linear(1024, 1024),
+            nn.LayerNorm(1024),
             nn.ReLU(),
             nn.Linear(1024, 1024),
+            nn.LayerNorm(1024),
             nn.ReLU(),
             nn.Linear(1024, 512),
+            nn.LayerNorm(512),
             nn.ReLU(),
         )
 
