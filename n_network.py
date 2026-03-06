@@ -6,11 +6,12 @@ class NoisyLinear(nn.Module):
     weight_epsilon: torch.Tensor
     bias_epsilon: torch.Tensor
 
-    def __init__(self, in_features, out_features, std_init=0.5):
+    def __init__(self, in_features, out_features, std_init=0.5, sigma_min=0.01):
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
         self.std_init = std_init
+        self.sigma_min = sigma_min
 
         # 平均パラメータ
         self.weight_mu = nn.Parameter(torch.empty(out_features, in_features))
@@ -56,10 +57,14 @@ class NoisyLinear(nn.Module):
         # ノイズがサンプルされていない場合は決定的で実行
         if not self.training:
             return torch.nn.functional.linear(x, self.weight_mu, self.bias_mu)
-        
+
+        # σに下限を設ける
+        weight_sigma = self.weight_sigma.clamp(min=self.sigma_min)
+        bias_sigma = self.bias_sigma.clamp(min=self.sigma_min)
+
         # ノイズを含めた重み計算
-        weight = self.weight_mu + self.weight_sigma * self.weight_epsilon
-        bias = self.bias_mu + self.bias_sigma * self.bias_epsilon
+        weight = self.weight_mu + weight_sigma * self.weight_epsilon
+        bias = self.bias_mu + bias_sigma * self.bias_epsilon
         
         return torch.nn.functional.linear(x, weight, bias)
 
