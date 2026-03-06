@@ -243,7 +243,7 @@ def train():
 
             state = next_state
             total_steps += 1
-            if total_steps % 2 == 0 and len(replay_buffer) >= batch_size * 10:
+            if total_steps % 4 == 0 and len(replay_buffer) >= batch_size * 10:
                 # 学習ステップでノイズをリセット
                 q_net.reset_noise()
                 states, actions, rewards, next_states, terminateds, indices, weights = replay_buffer.sampling()
