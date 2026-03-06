@@ -12,3 +12,5 @@ experiences/
 videos/
 *.pth
 *.txt
+*.png
+*.json
