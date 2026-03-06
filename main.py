@@ -96,7 +96,7 @@ def board_shaping_reward(obs):
     # 1. コーナーボーナス: 最大タイルが右下角にあれば加点
     corner_bonus = 0.0
     if board[3][3] == max_val:
-        corner_bonus = float(max_val) * 0.1
+        corner_bonus = float(max_val) * 0.02
 
     # 2. 単調性: 右下角から左・上方向に降順であるほど加点
     #    理想配置: 右下が最大、左・上に向かって小さくなる
@@ -109,11 +109,11 @@ def board_shaping_reward(obs):
             # 列: 下→上が降順
             if board[3-j][i] >= board[3-j-1][i]:
                 mono += 1
-    mono_bonus = mono * 0.05  # 最大 24*0.05 = 1.2
+    mono_bonus = mono * 0.01  # 最大 24*0.01 = 0.24
 
     # 3. 空きマスボーナス: 空きが多いほど柔軟に動ける
     empty = float((board == 0).sum())
-    empty_bonus = empty * 0.1
+    empty_bonus = empty * 0.02
 
     return corner_bonus + mono_bonus + empty_bonus
 
