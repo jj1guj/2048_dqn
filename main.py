@@ -191,8 +191,8 @@ def train():
                     max_tile = current_tile
                     reward += float(info["max"])
 
-            # Reward Shaping: ボード状態に基づく中間報酬
-            reward += board_shaping_reward(next_state)
+            # Reward Shaping: ボード状態に基づく中間報酬（現在無効）
+            # reward += board_shaping_reward(next_state)
 
             # 違法手はバッファに入れない＆次のアクションを試す
             if not info["is_legal"]:
