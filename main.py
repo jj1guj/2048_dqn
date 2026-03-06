@@ -47,7 +47,7 @@ replay_buffer = PrioritizedReplayBuffer(buffer_size, batch_size,
 
 lr = 1e-4
 optimizer = torch.optim.Adam(q_net.parameters(), lr=lr)
-scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=episodes, eta_min=1e-6)
+scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=10000, eta_min=1e-6)
 
 gamma = 0.99
 tau = 0.005  # ソフトターゲット更新率
