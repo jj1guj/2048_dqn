@@ -227,7 +227,8 @@ def train():
 
         current_lr = optimizer.param_groups[0]['lr']
         logger.info(f'Episode: {episode}, Total Reward: {total_reward:.1f}, Max Tile: {max_tile}, Steps: {time_step}, LR: {current_lr:.2e}')
-        scheduler.step()
+        if len(replay_buffer) >= batch_size * 10:
+            scheduler.step()
 
         if total_reward > max_reward:
             max_reward = total_reward
