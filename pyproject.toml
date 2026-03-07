@@ -5,10 +5,12 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "fast2048-sim",
     "fastapi>=0.134.0",
     "gymnasium==1.2.1",
     "gymnasium-2048>=0.1.0",
     "imageio>=2.37.2",
+    "maturin>=1.12.6",
     "matplotlib>=3.10.0",
     "numpy>=2.4.2",
     "playwright>=1.58.0",
@@ -17,3 +19,6 @@ dependencies = [
     "torchvision>=0.25.0",
     "uvicorn>=0.41.0",
 ]
+
+[tool.uv.sources]
+fast2048-sim = { path = "rust_sim" }

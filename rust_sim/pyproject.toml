@@ -1,0 +1,13 @@
+[build-system]
+requires = ["maturin>=1.12,<2"]
+build-backend = "maturin"
+
+[project]
+name = "fast2048-sim"
+version = "0.1.0"
+description = "Fast Rust simulator for 2048 board operations"
+requires-python = ">=3.12"
+
+[tool.maturin]
+module-name = "fast2048_sim"
+features = ["pyo3/extension-module"]
