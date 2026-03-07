@@ -27,7 +27,7 @@ file_handler.setFormatter(formatter)
 logger.addHandler(stream_handler)
 logger.addHandler(file_handler)
 
-env = gym.make("gymnasium_2048:gymnasium_2048/TwentyFortyEight-v0", size=4, max_pow=16)
+env = __import__("fast2048_env").Fast2048Env(size=4, max_pow=16)
 
 device = torch.device("cuda")
 
