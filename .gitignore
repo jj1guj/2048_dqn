@@ -17,5 +17,6 @@ videos/
 
 # Rust simulator artifacts
 rust_sim/target/
+rust_sim/Cargo.lock
 .maturin/
 *.so
