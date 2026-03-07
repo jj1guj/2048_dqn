@@ -167,6 +167,7 @@ def train():
     global best_weight
     max_reward = 0
     total_steps = 0
+    has_trained = False
     for episode in range(episodes):
         # ノイズをリセット
         q_net.reset_noise()
@@ -217,6 +218,7 @@ def train():
                 replay_buffer.update_priorities(indices, td_errors)
                 # ソフトターゲット更新（学習ごとに少しずつ更新）
                 soft_update_target()
+                has_trained = True
 
             total_reward += float(reward)
             time_step += 1
@@ -227,7 +229,7 @@ def train():
 
         current_lr = optimizer.param_groups[0]['lr']
         logger.info(f'Episode: {episode}, Total Reward: {total_reward:.1f}, Max Tile: {max_tile}, Steps: {time_step}, LR: {current_lr:.2e}')
-        if len(replay_buffer) >= batch_size * 10:
+        if has_trained:
             scheduler.step()
 
         if total_reward > max_reward:
