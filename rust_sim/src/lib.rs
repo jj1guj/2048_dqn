@@ -36,15 +36,30 @@ fn compress_line_left(line: [u8; 4]) -> ([u8; 4], u32, bool) {
 
 fn get_line(board: &[u8; 16], action: u8, index: usize) -> [u8; 4] {
     match action {
-        0 => [board[index], board[4 + index], board[8 + index], board[12 + index]],
+        0 => [
+            board[index],
+            board[4 + index],
+            board[8 + index],
+            board[12 + index],
+        ],
         1 => [
             board[4 * index + 3],
             board[4 * index + 2],
             board[4 * index + 1],
             board[4 * index],
         ],
-        2 => [board[12 + index], board[8 + index], board[4 + index], board[index]],
-        _ => [board[4 * index], board[4 * index + 1], board[4 * index + 2], board[4 * index + 3]],
+        2 => [
+            board[12 + index],
+            board[8 + index],
+            board[4 + index],
+            board[index],
+        ],
+        _ => [
+            board[4 * index],
+            board[4 * index + 1],
+            board[4 * index + 2],
+            board[4 * index + 3],
+        ],
     }
 }
 
