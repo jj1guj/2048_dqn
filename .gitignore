@@ -14,3 +14,8 @@ videos/
 *.txt
 *.png
 *.json
+
+# Rust simulator artifacts
+rust_sim/target/
+.maturin/
+*.so
