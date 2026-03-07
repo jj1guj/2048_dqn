@@ -40,7 +40,7 @@ best_weight = q_net.state_dict()
 episodes = 50000
 
 buffer_size = 1000000
-batch_size = 256
+batch_size = 128
 replay_buffer = PrioritizedReplayBuffer(buffer_size, batch_size, 
                                         alpha=0.6, beta_start=0.4, 
                                         beta_end=1.0, beta_frames=episodes)
