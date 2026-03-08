@@ -184,6 +184,133 @@ def save_binned_summary_plot(out_dir, binned):
     plt.close(fig)
 
 
+def save_diagnostic_plot(out_dir, episodes, rewards, max_tiles, steps, bin_size, ma_window):
+    """All-in-one 6-panel diagnostic: reward trend, ≥512 rate, reward σ/CV,
+    avg episode length, cumulative ≥1024 count, early-vs-recent tile dist."""
+    import matplotlib.gridspec as gridspec
+
+    eps = episodes
+    rew = rewards
+    tile = max_tiles
+
+    WIN = ma_window
+    BIN = bin_size
+
+    def ma(arr, w):
+        cs = np.cumsum(arr.astype(float))
+        cs[w:] = cs[w:] - cs[:-w]
+        return cs[w - 1:] / w
+
+    # binned stats
+    bin_edges = np.arange(0, eps.max() + BIN, BIN)
+    bc, p512, p1024, rew_mean, rew_std, steps_mean = [], [], [], [], [], []
+    for lo in bin_edges[:-1]:
+        hi = lo + BIN
+        mask = (eps >= lo) & (eps < hi)
+        if not mask.any():
+            continue
+        n = mask.sum()
+        bc.append((lo + hi) / 2)
+        p512.append((tile[mask] >= 512).sum() / n * 100)
+        p1024.append((tile[mask] >= 1024).sum() / n * 100)
+        rew_mean.append(rew[mask].mean())
+        rew_std.append(rew[mask].std())
+        steps_mean.append(steps[mask].mean())
+    bc = np.array(bc)
+    p512 = np.array(p512)
+    p1024 = np.array(p1024)
+    rew_mean = np.array(rew_mean)
+    rew_std = np.array(rew_std)
+    steps_mean = np.array(steps_mean)
+
+    ep_count = eps[-1]
+    fig = plt.figure(figsize=(16, 12))
+    fig.suptitle(
+        f"2048 DQN  —  ep 0-{ep_count}  ·  All-in-one diagnostic",
+        fontsize=13, fontweight="bold",
+    )
+    gs = gridspec.GridSpec(3, 3, figure=fig, hspace=0.45, wspace=0.35)
+
+    # 1) Total Reward MA
+    eps_ma = eps[WIN - 1:]
+    ax = fig.add_subplot(gs[0, :2])
+    ax.scatter(eps, rew, s=0.2, alpha=0.15, color="steelblue", rasterized=True)
+    ax.plot(eps_ma, ma(rew, WIN), color="crimson", lw=2, label=f"MA-{WIN}")
+    z = np.polyfit(bc, rew_mean, 1)
+    ax.plot(bc, np.polyval(z, bc), "k--", lw=1.2,
+            label=f"trend ({z[0] * 1000:+.2f}/1kep)")
+    ax.set_xlabel("Episode"); ax.set_ylabel("Total Reward")
+    ax.set_title("Total Reward"); ax.legend(fontsize=9)
+
+    # 2) ≥512 tile rate bar
+    ax2 = fig.add_subplot(gs[0, 2])
+    z2 = np.polyfit(bc, p512, 1)
+    ax2.bar(bc, p512, width=BIN * 0.8, color="royalblue", alpha=0.7, label="≥512%")
+    ax2.plot(bc, np.polyval(z2, bc), "r--", lw=1.5,
+             label=f"trend ({z2[0] * 1000:+.3f}%/1kep)")
+    ax2.set_xlabel("Episode"); ax2.set_ylabel("%")
+    ax2.set_title(f"≥512 Tile Rate  ({BIN}-ep bins)")
+    ax2.legend(fontsize=8)
+
+    # 3) Reward mean ± σ  (proxy for NoisyNet exploration)
+    ax3 = fig.add_subplot(gs[1, :2])
+    ax3.plot(bc, rew_mean, color="darkgreen", lw=2, label="mean reward")
+    ax3.fill_between(bc, rew_mean - rew_std, rew_mean + rew_std,
+                     alpha=0.25, color="green", label="±1σ")
+    ax3_r = ax3.twinx()
+    cv = rew_std / np.where(rew_mean == 0, 1, rew_mean) * 100
+    ax3_r.plot(bc, cv, color="darkorange", lw=1.5, ls="--", label="CV%")
+    ax3_r.set_ylabel("CV (%)", color="darkorange")
+    ax3_r.tick_params(axis="y", labelcolor="darkorange")
+    ax3.set_xlabel("Episode"); ax3.set_ylabel("Reward")
+    ax3.set_title("Reward Mean ± σ  (CV = σ/mean, proxy for NoisyNet exploration)")
+    lines0, labels0 = ax3.get_legend_handles_labels()
+    lines1, labels1 = ax3_r.get_legend_handles_labels()
+    ax3.legend(lines0 + lines1, labels0 + labels1, fontsize=8)
+
+    # 4) Avg episode length
+    ax4 = fig.add_subplot(gs[1, 2])
+    ax4.plot(bc, steps_mean, color="purple", lw=2, label="avg steps")
+    z4 = np.polyfit(bc, steps_mean, 1)
+    ax4.plot(bc, np.polyval(z4, bc), "r--", lw=1.5,
+             label=f"trend ({z4[0] * 1000:+.1f}/1kep)")
+    ax4.set_xlabel("Episode"); ax4.set_ylabel("Steps")
+    ax4.set_title("Avg Episode Length  (declining = worse policy)")
+    ax4.legend(fontsize=8)
+
+    # 5) Cumulative ≥1024 count
+    ax5 = fig.add_subplot(gs[2, :2])
+    cum1024 = np.cumsum(tile >= 1024)
+    ax5.plot(eps, cum1024, color="firebrick", lw=2)
+    total_1024 = int(cum1024[-1])
+    ax5.set_xlabel("Episode"); ax5.set_ylabel("Cumulative ≥1024 tiles")
+    ax5.set_title(f"Cumulative ≥1024 Tile Appearances  ({total_1024} total)")
+    ax5.axhline(total_1024, color="gray", ls=":", lw=1)
+
+    # 6) Max tile dist: early vs recent
+    ax6 = fig.add_subplot(gs[2, 2])
+    tile_vals = [32, 64, 128, 256, 512, 1024]
+    colors6 = ["#d9f0a3", "#addd8e", "#78c679", "#31a354", "#006837", "#00441b"]
+    early_cutoff = min(2500, int(ep_count * 0.1) + 1)
+    recent_cutoff = max(ep_count - 2500, int(ep_count * 0.9))
+    for label, mask, alpha in [
+        (f"ep 0-{early_cutoff}", eps < early_cutoff, 1.0),
+        (f"ep {recent_cutoff}-{ep_count}", eps >= recent_cutoff, 0.55),
+    ]:
+        n = mask.sum()
+        if n == 0:
+            continue
+        pcts = [(tile[mask] == t).sum() / n * 100 for t in tile_vals]
+        ax6.barh([str(t) for t in tile_vals], pcts, height=0.35,
+                 alpha=alpha, label=label, color=colors6)
+    ax6.set_xlabel("%"); ax6.set_title("Max Tile Dist: early vs recent")
+    ax6.legend(fontsize=8)
+
+    out = out_dir / "diagnostic_full.png"
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
 def save_summary_json(out_dir, episodes, rewards, max_tiles, steps, lrs, binned):
     summary = {
         "episodes": int(len(episodes)),
@@ -235,6 +362,7 @@ def main():
 
     binned = binned_stats(episodes, rewards, max_tiles, args.bin_size)
     save_binned_summary_plot(args.out_dir, binned)
+    save_diagnostic_plot(args.out_dir, episodes, rewards, max_tiles, steps, args.bin_size, args.ma_window)
     save_summary_json(args.out_dir, episodes, rewards, max_tiles, steps, lrs, binned)
 
     print(f"Saved plots to: {args.out_dir.resolve()}")
@@ -243,6 +371,7 @@ def main():
     print("- steps_and_lr.png")
     print("- tile_reach_rates.png")
     print("- binned_summary.png")
+    print("- diagnostic_full.png")
     print("- summary.json")
 
 
