@@ -52,7 +52,7 @@ scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=episodes
 gamma = 0.99
 tau = 0.005  # ソフトターゲット更新率
 
-n_step = 5
+n_step = 10
 n_step_buffer = NStepBuffer(n_step, gamma)
 
 def get_legal_actions(obs):
