@@ -91,17 +91,12 @@ class N_Network(nn.Module):
     def __init__(self, blocks=3, channels=128):
         super().__init__()
 
-        input_dim = 4 * 4 * 16
-
-        self.shared = nn.Sequential(
-            nn.Linear(input_dim, 256),
+        self.conv = nn.Sequential(
+            nn.Conv2d(16, 128, kernel_size=2),   # (128, 3, 3)
             nn.ReLU(),
-            nn.Linear(256, 1024),
+            nn.Conv2d(128, 128, kernel_size=2),  # (128, 2, 2) → flatten 512
             nn.ReLU(),
-            nn.Linear(1024, 1024),
-            nn.ReLU(),
-            nn.Linear(1024, 512),
-            nn.ReLU(),
+            nn.Flatten(),                         # 512次元 ← NoisyLinear(512,128)とそのまま接続
         )
 
         self.value_stream = nn.Sequential(
@@ -116,9 +111,9 @@ class N_Network(nn.Module):
         )
 
     def forward(self, x):
-        # (batch, 4, 4, 16) → (batch, 256)
-        out = x.reshape(x.size(0) if x.dim() == 4 else 1, -1).float()
-        out = self.shared(out)
+        # (batch, 4, 4, 16) → (batch, 512)
+        x = x.permute(0, 3, 1, 2)
+        out = self.conv(x)
 
         value = self.value_stream(out)
         advantage = self.advantage_stream(out)
