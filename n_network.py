@@ -6,7 +6,7 @@ class NoisyLinear(nn.Module):
     weight_epsilon: torch.Tensor
     bias_epsilon: torch.Tensor
 
-    def __init__(self, in_features, out_features, std_init=0.5, sigma_min=0.01):
+    def __init__(self, in_features, out_features, std_init=0.5, sigma_min=0.1):
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
