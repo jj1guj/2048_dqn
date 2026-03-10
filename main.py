@@ -47,7 +47,7 @@ replay_buffer = PrioritizedReplayBuffer(buffer_size, batch_size,
 
 lr = 1e-4
 optimizer = torch.optim.Adam(q_net.parameters(), lr=lr)
-scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=8000, T_mult=3, eta_min=1e-6)
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=3000, min_lr=1e-5)
 
 gamma = 0.99
 tau = 0.005  # ソフトターゲット更新率
@@ -230,7 +230,7 @@ def train():
         current_lr = optimizer.param_groups[0]['lr']
         logger.info(f'Episode: {episode}, Total Reward: {total_reward:.1f}, Max Tile: {max_tile}, Steps: {time_step}, LR: {current_lr:.2e}')
         if has_trained:
-            scheduler.step()
+            scheduler.step(total_reward)
 
         if total_reward > max_reward:
             max_reward = total_reward
