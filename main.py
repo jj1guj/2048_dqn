@@ -96,13 +96,30 @@ def board_potential(obs):
     board = obs.argmax(axis=-1)  # (4,4) log2値
     max_val = board.max()
 
-    # 1. コーナーボーナス: 最大タイルがいずれかのコーナーにある時のみボーナス
-    corner_positions = [board[0][0], board[0][3], board[3][0], board[3][3]]
-    max_in_corner = any(v == max_val for v in corner_positions)
-    corner_bonus = float(max_val) * 0.5 if max_in_corner else 0.0
+    # コーナーと対応するflip設定: (row, col) -> (flip_row, flip_col)
+    corner_flip = {
+        (0, 0): (False, False),  # 左上基点
+        (0, 3): (False, True),   # 右上基点
+        (3, 0): (True,  False),  # 左下基点
+        (3, 3): (True,  True),   # 右下基点
+    }
 
-    # 2. 単調性: 最大タイルがあるコーナーを基点に、行・列が単調減少しているか
-    #    4コーナー×2方向を試し最大スコアを採用（エージェントが自由にコーナーを選べる）
+    # 最大タイルがいるコーナーを特定
+    max_corner_flip = None
+    for (r, c), flip in corner_flip.items():
+        if board[r][c] == max_val:
+            max_corner_flip = flip
+            break
+
+    # 最大タイルがコーナーにいない場合はボーナスなし
+    if max_corner_flip is None:
+        return 0.0
+
+    # 1. コーナーボーナス
+    corner_bonus = float(max_val) * 0.5
+
+    # 2. 単調性: 最大タイルが実際にいるコーナーの方向だけで評価
+    #    他コーナー基点のスコアは使わない → 無関係な行列の単調性維持を抑制
     def monotone_score(b, flip_row, flip_col):
         """flip_row/colでボードを反転して左上基点の単調性を計算"""
         g = b[::-1, :] if flip_row else b[:, :]
@@ -116,12 +133,7 @@ def board_potential(obs):
                     score += 1
         return score
 
-    mono = max(
-        monotone_score(board, False, False),  # 左上基点
-        monotone_score(board, False, True),   # 右上基点
-        monotone_score(board, True,  False),  # 左下基点
-        monotone_score(board, True,  True),   # 右下基点
-    )
+    mono = monotone_score(board, *max_corner_flip)
     mono_bonus = mono * 0.1  # 最大 24*0.1 = 2.4
 
     return corner_bonus + mono_bonus
