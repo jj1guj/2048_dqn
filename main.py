@@ -88,34 +88,43 @@ def is_move_legal(board, action):
                 return True
     return False
 
-def board_shaping_reward(obs):
-    """ボード状態に基づくシェーピング報酬（右下コーナー戦略）"""
+def board_potential(obs):
+    """ボード状態のポテンシャル関数 Φ(s)。
+    ポテンシャルベースシェーピング F = γ*Φ(s') - Φ(s) に使用。
+    最適方策を変えずに配置改善を誘導できる（Ng et al., 1999）。
+    """
     board = obs.argmax(axis=-1)  # (4,4) log2値
     max_val = board.max()
 
-    # 1. コーナーボーナス: 最大タイルが右下角にあれば加点
-    corner_bonus = 0.0
-    if board[3][3] == max_val:
-        corner_bonus = float(max_val) * 0.02
+    # 1. コーナーボーナス: 最大タイルがいずれかのコーナーにある時のみボーナス
+    corner_positions = [board[0][0], board[0][3], board[3][0], board[3][3]]
+    max_in_corner = any(v == max_val for v in corner_positions)
+    corner_bonus = float(max_val) * 0.5 if max_in_corner else 0.0
 
-    # 2. 単調性: 右下角から左・上方向に降順であるほど加点
-    #    理想配置: 右下が最大、左・上に向かって小さくなる
-    mono = 0.0
-    for i in range(4):
-        for j in range(3):
-            # 行: 右→左が降順 (j+1 < j の方向)
-            if board[i][3-j] >= board[i][3-j-1]:
-                mono += 1
-            # 列: 下→上が降順
-            if board[3-j][i] >= board[3-j-1][i]:
-                mono += 1
-    mono_bonus = mono * 0.01  # 最大 24*0.01 = 0.24
+    # 2. 単調性: 最大タイルがあるコーナーを基点に、行・列が単調減少しているか
+    #    4コーナー×2方向を試し最大スコアを採用（エージェントが自由にコーナーを選べる）
+    def monotone_score(b, flip_row, flip_col):
+        """flip_row/colでボードを反転して左上基点の単調性を計算"""
+        g = b[::-1, :] if flip_row else b[:, :]
+        g = g[:, ::-1] if flip_col else g[:, :]
+        score = 0.0
+        for i in range(4):
+            for j in range(3):
+                if g[i][j] >= g[i][j+1]:   # 行: 左→右が降順
+                    score += 1
+                if g[j][i] >= g[j+1][i]:   # 列: 上→下が降順
+                    score += 1
+        return score
 
-    # 3. 空きマスボーナス: 空きが多いほど柔軟に動ける
-    empty = float((board == 0).sum())
-    empty_bonus = empty * 0.02
+    mono = max(
+        monotone_score(board, False, False),  # 左上基点
+        monotone_score(board, False, True),   # 右上基点
+        monotone_score(board, True,  False),  # 左下基点
+        monotone_score(board, True,  True),   # 右下基点
+    )
+    mono_bonus = mono * 0.1  # 最大 24*0.1 = 2.4
 
-    return corner_bonus + mono_bonus + empty_bonus
+    return corner_bonus + mono_bonus
 
 
 def now_policy(state):
@@ -192,8 +201,9 @@ def train():
                     max_tile = current_tile
                     reward += float(info["max"])
 
-            # Reward Shaping: ボード状態に基づく中間報酬（現在無効）
-            # reward += board_shaping_reward(next_state)
+            # ポテンシャルベース報酬シェーピング: F = γ*Φ(s') - Φ(s)
+            # 最適方策を変えずに配置改善を誘導する（Ng et al., 1999）
+            reward += gamma * board_potential(next_state) - board_potential(state)
 
             # 違法手はバッファに入れない＆次のアクションを試す
             if not info["is_legal"]:
