@@ -10,6 +10,7 @@ import numpy as np
 LOG_PATTERN = re.compile(
     r"Episode:\s*(\d+),\s*"
     r"Total Reward:\s*([-+]?\d*\.?\d+),\s*"
+    r"(?:Game Reward:\s*[-+]?\d*\.?\d+,\s*)?"  # 新フォーマット対応（省略可）
     r"Max Tile:\s*(\d+),\s*"
     r"Steps:\s*(\d+),\s*"
     r"LR:\s*([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)"
