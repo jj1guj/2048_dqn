@@ -114,10 +114,9 @@ def board_potential(obs):
         for cr, cc in corners
     )
 
-    # 距離ベースの近接ボーナス: コーナーに近いほど高い（最大距離=6で正規化）
-    # dist=0(コーナー): 0.5*max_val, dist=1: ~0.42*max_val, dist=2(中央): ~0.33*max_val
-    MAX_DIST = 6
-    proximity_bonus = float(max_val) * 0.5 * (MAX_DIST - min_dist) / MAX_DIST
+    # バイナリコーナーボーナス: 最大タイルがコーナーにいる時のみΦ=max_val*0.5、それ以外は0
+    # コーナーから出る強い抑止力を持たせる（距離ベースより5〜6倍強い退出ペナルティ）
+    proximity_bonus = float(max_val) * 0.5 if min_dist == 0 else 0.0
 
     # 単調性ボーナス: 最大タイルがコーナーにいる時のみ、そのコーナー基点で評価
     mono_bonus = 0.0
