@@ -47,7 +47,7 @@ replay_buffer = PrioritizedReplayBuffer(buffer_size, batch_size,
 
 lr = 1e-4
 optimizer = torch.optim.Adam(q_net.parameters(), lr=lr)
-scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=3000, min_lr=1e-5)
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=5000, min_lr=1e-5)
 
 gamma = 0.99
 tau = 0.005  # ソフトターゲット更新率
@@ -141,7 +141,7 @@ def board_potential(obs):
                             score += 1
                 return score
 
-            mono_bonus = monotone_score(board, *flip) * 0.1  # 最大 2.4
+            mono_bonus = monotone_score(board, *flip) * 0.5  # 最大 12.0
 
     return proximity_bonus + mono_bonus
 
