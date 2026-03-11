@@ -96,47 +96,54 @@ def board_potential(obs):
     board = obs.argmax(axis=-1)  # (4,4) log2値
     max_val = board.max()
 
-    # コーナーと対応するflip設定: (row, col) -> (flip_row, flip_col)
+    corners = [(0, 0), (0, 3), (3, 0), (3, 3)]
     corner_flip = {
-        (0, 0): (False, False),  # 左上基点
-        (0, 3): (False, True),   # 右上基点
-        (3, 0): (True,  False),  # 左下基点
-        (3, 3): (True,  True),   # 右下基点
+        (0, 0): (False, False),
+        (0, 3): (False, True),
+        (3, 0): (True,  False),
+        (3, 3): (True,  True),
     }
 
-    # 最大タイルがいるコーナーを特定
-    max_corner_flip = None
-    for (r, c), flip in corner_flip.items():
-        if board[r][c] == max_val:
-            max_corner_flip = flip
-            break
+    # 最大タイルの位置を取得（複数ある場合も考慮）
+    max_positions = list(zip(*np.where(board == max_val)))
 
-    # 最大タイルがコーナーにいない場合はボーナスなし
-    if max_corner_flip is None:
-        return 0.0
+    # 最大タイルから最寄りコーナーへのマンハッタン距離
+    min_dist = min(
+        abs(r - cr) + abs(c - cc)
+        for r, c in max_positions
+        for cr, cc in corners
+    )
 
-    # 1. コーナーボーナス
-    corner_bonus = float(max_val) * 0.5
+    # 距離ベースの近接ボーナス: コーナーに近いほど高い（最大距離=6で正規化）
+    # dist=0(コーナー): 0.5*max_val, dist=1: ~0.42*max_val, dist=2(中央): ~0.33*max_val
+    MAX_DIST = 6
+    proximity_bonus = float(max_val) * 0.5 * (MAX_DIST - min_dist) / MAX_DIST
 
-    # 2. 単調性: 最大タイルが実際にいるコーナーの方向だけで評価
-    #    他コーナー基点のスコアは使わない → 無関係な行列の単調性維持を抑制
-    def monotone_score(b, flip_row, flip_col):
-        """flip_row/colでボードを反転して左上基点の単調性を計算"""
-        g = b[::-1, :] if flip_row else b[:, :]
-        g = g[:, ::-1] if flip_col else g[:, :]
-        score = 0.0
-        for i in range(4):
-            for j in range(3):
-                if g[i][j] >= g[i][j+1]:   # 行: 左→右が降順
-                    score += 1
-                if g[j][i] >= g[j+1][i]:   # 列: 上→下が降順
-                    score += 1
-        return score
+    # 単調性ボーナス: 最大タイルがコーナーにいる時のみ、そのコーナー基点で評価
+    mono_bonus = 0.0
+    if min_dist == 0:
+        # 最大タイルがいるコーナーを特定
+        best_corner = next(
+            (c for c in corners if board[c[0]][c[1]] == max_val), None
+        )
+        if best_corner is not None:
+            flip = corner_flip[best_corner]
 
-    mono = monotone_score(board, *max_corner_flip)
-    mono_bonus = mono * 0.1  # 最大 24*0.1 = 2.4
+            def monotone_score(b, flip_row, flip_col):
+                g = b[::-1, :] if flip_row else b[:, :]
+                g = g[:, ::-1] if flip_col else g[:, :]
+                score = 0.0
+                for i in range(4):
+                    for j in range(3):
+                        if g[i][j] >= g[i][j+1]:
+                            score += 1
+                        if g[j][i] >= g[j+1][i]:
+                            score += 1
+                return score
 
-    return corner_bonus + mono_bonus
+            mono_bonus = monotone_score(board, *flip) * 0.1  # 最大 2.4
+
+    return proximity_bonus + mono_bonus
 
 
 def now_policy(state):
