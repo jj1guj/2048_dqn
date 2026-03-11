@@ -198,6 +198,7 @@ def train():
         time_step = 0
         episode_over = False
         total_reward = 0
+        game_reward = 0  # シェーピングを除いたゲーム本来の報酬
         max_tile = 0
         n_step_buffer.reset()
 
@@ -206,12 +207,14 @@ def train():
             next_state, reward, terminated, truncated, info = env.step(action)
             reward = np.log2(float(reward) + 1)
             episode_over = terminated or truncated
+            game_step_reward = reward  # シェーピング前のゲーム報酬を記録
 
             if info["max"] > 0:
                 current_tile = int(2 ** info["max"])
                 if current_tile > max_tile:
                     max_tile = current_tile
                     reward += float(info["max"])
+                    game_step_reward += float(info["max"])
 
             # ポテンシャルベース報酬シェーピング: F = γ*Φ(s') - Φ(s)
             # 最適方策を変えずに配置改善を誘導する（Ng et al., 1999）
@@ -243,6 +246,7 @@ def train():
                 has_trained = True
 
             total_reward += float(reward)
+            game_reward += float(game_step_reward)
             time_step += 1
 
         # エピソード終了時に残りすべてをflush
@@ -250,9 +254,9 @@ def train():
             replay_buffer.add(exp)
 
         current_lr = optimizer.param_groups[0]['lr']
-        logger.info(f'Episode: {episode}, Total Reward: {total_reward:.1f}, Max Tile: {max_tile}, Steps: {time_step}, LR: {current_lr:.2e}')
+        logger.info(f'Episode: {episode}, Total Reward: {total_reward:.1f}, Game Reward: {game_reward:.1f}, Max Tile: {max_tile}, Steps: {time_step}, LR: {current_lr:.2e}')
         if has_trained:
-            scheduler.step(total_reward)
+            scheduler.step(game_reward)  # シェーピングを除いたゲーム報酬でLR制御
 
         if total_reward > max_reward:
             max_reward = total_reward
