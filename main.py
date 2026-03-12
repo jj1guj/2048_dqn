@@ -52,7 +52,7 @@ scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', fa
 gamma = 0.99
 tau = 0.005  # ソフトターゲット更新率
 
-n_step = 5
+n_step = 20
 n_step_buffer = NStepBuffer(n_step, gamma)
 
 def get_legal_actions(obs):
